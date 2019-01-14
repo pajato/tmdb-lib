@@ -7,9 +7,6 @@ pluginManagement {
         maven { setUrl("https://plugins.gradle.org/m2/") }
         jcenter()
     }
-}
-/*
-pluginManagement {
     resolutionStrategy {
         eachPlugin {
             if (requested.id.id == "kotlin-multiplatform") {
@@ -18,7 +15,7 @@ pluginManagement {
         }
     }
 }
-*/
+
 rootProject.name = "tmdb-lib"
 
 enableFeaturePreview("GRADLE_METADATA")
