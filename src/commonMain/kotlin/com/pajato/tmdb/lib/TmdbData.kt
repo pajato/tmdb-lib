@@ -116,3 +116,15 @@ data class TvSeries(val id: Int = -1, val original_name: String = "", val popula
 
 /** A special TMDB error class providing granular message data for errors. */
 data class TmdbError(val message: String) : TmdbData()
+
+/** An extension to access the listname given a TmdbData item. */
+fun TmdbData.getListName(): String = when (this) {
+    is Collection -> Collection.listName
+    is Keyword -> Keyword.listName
+    is Movie -> Movie.listName
+    is Network -> Network.listName
+    is Person -> Person.listName
+    is ProductionCompany -> ProductionCompany.listName
+    is TvSeries -> TvSeries.listName
+    is TmdbError -> ""
+}
