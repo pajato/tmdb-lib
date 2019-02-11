@@ -6,9 +6,9 @@ import java.net.URL
 import java.util.zip.GZIPInputStream
 import kotlin.reflect.KClass
 
-// Provide a JVM implementation for the daily export data sets.
+// Provide a JVM implementation for the daily export task.
 @ExperimentalCoroutinesApi
-actual fun updateExportData(data: MutableMap<String, List<TmdbData>>) {
+actual fun dailyExportTask(data: MutableMap<String, List<TmdbData>>) {
     val channel = Channel<List<TmdbData>>()
     fun fetchListForClass(scope: CoroutineScope, kClass: KClass<out TmdbData>) {
         fun getListName(subclass: KClass<out TmdbData>): String? {
@@ -31,22 +31,24 @@ actual fun updateExportData(data: MutableMap<String, List<TmdbData>>) {
                 return result
             }
         }
+        suspend fun processReceivedLists() {
+            val list = channel.receive()
+            val listName = list[0].getListName()
+            println("Receiving list {$listName} of size: ${list.size}.")
+            data[listName] = list
+        }
 
         val name = getListName(kClass) ?: return
         scope.launch(Dispatchers.IO) {
             val list = fetchLines(name)
-            if (list.isNotEmpty()) { channel.send(list) }
+            if (list.isNotEmpty()) channel.send(list)
         }
-
+        scope.launch(Dispatchers.Default) { processReceivedLists() }
     }
 
-    // Kick off a number of coroutines, one each to handle an export data set class.
+    // Kick off a number of coroutines, one each to handle an exported data set class.
     runBlocking {
         TmdbData::class.sealedSubclasses.forEach { kClass -> fetchListForClass(this, kClass) }
-        for (i in TmdbData::class.sealedSubclasses.size - 2 downTo 0 ) {
-            val list = channel.receive()
-            val name = list[0].getListName()
-            println("Processing list {$name} of size: ${list.size}; i == $i.")
-        }
+        println("Done with daily export task!")
     }
 }

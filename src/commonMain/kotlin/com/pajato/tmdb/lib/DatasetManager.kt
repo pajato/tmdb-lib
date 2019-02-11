@@ -20,7 +20,7 @@ fun Int.toTmdbFormat() = if (this > 9) "$this" else "0$this"
 fun DateTime.toTmdbFormat() = "${this.month1.toTmdbFormat()}_${this.dayOfMonth.toTmdbFormat()}_${this.yearInt}"
 fun DateTime.isAfter(time: Int): Boolean = this.hours > time
 
-expect fun updateExportData(data: MutableMap<String, List<TmdbData>>)
+expect fun dailyExportTask(data: MutableMap<String, List<TmdbData>>)
 
 fun getLinesUrl(listName: String): String {
     val result = "http://files.tmdb.org/p/exports/${listName}_${getLastExportDate(now())}.json.gz"
@@ -44,13 +44,9 @@ fun parse(listName: String, line: String): TmdbData =
 object DatasetManager {
     private val data = mutableMapOf<String, List<TmdbData>>()
 
-    fun updateData(name: String, list: List<TmdbData>) {
-        data[name] = list
-    }
-
     /** Set up the map associating list names to actual lists of TMDB data (dataset) for that list name. */
     init {
-        if (data.isEmpty()) updateExportData(data)
+        dailyExportTask(data)
     }
 
     /** Return a dataset for a given list name. */
