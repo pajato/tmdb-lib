@@ -14,7 +14,7 @@ import kotlin.test.fail
 class LibraryTest {
     private fun testTmdbData(name: String) {
         val nonHomogenousCollection = "The $name collection contains inconsistent typed data!"
-        val list = fetchLines(name)
+        val list = listOf(createDefaultFromType(name)) //fetchLines(name)
         assertTrue(list.isNotEmpty(), "Incorrect number of $name!")
         when (name) {
             Collection.listName -> assertTrue(list[0] is Collection, nonHomogenousCollection)
@@ -30,6 +30,10 @@ class LibraryTest {
 
     private fun testEmptyTmdbDataItem(item: TmdbData) {
         assertTrue(item is TmdbError, "A non-blank input did not generate an error!")
+    }
+
+    @Test fun `when the dataset manager singleton is initialized verify data is correct`() {
+        assertTrue(DatasetManager.getDataset("") != null, "Got a null dataset!")
     }
 
     @Test fun `when the TMDB network data is accessed the count is greater than 0`() {

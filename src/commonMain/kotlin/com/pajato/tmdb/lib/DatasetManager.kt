@@ -3,6 +3,11 @@ package com.pajato.tmdb.lib
 import com.soywiz.klock.DateTime
 import com.soywiz.klock.DateTime.Companion.now
 import com.soywiz.klock.hours
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 
 /**
  * Compute the export date for today: if the current time is before 8:00am UTC, use the previous export date, otheriwse
@@ -15,7 +20,7 @@ fun Int.toTmdbFormat() = if (this > 9) "$this" else "0$this"
 fun DateTime.toTmdbFormat() = "${this.month1.toTmdbFormat()}_${this.dayOfMonth.toTmdbFormat()}_${this.yearInt}"
 fun DateTime.isAfter(time: Int): Boolean = this.hours > time
 
-expect fun fetchLines(listName: String): List<TmdbData>
+expect fun dailyExportTask(data: MutableMap<String, List<TmdbData>>)
 
 fun getLinesUrl(listName: String): String {
     val result = "http://files.tmdb.org/p/exports/${listName}_${getLastExportDate(now())}.json.gz"
@@ -35,42 +40,17 @@ fun parse(listName: String, line: String): TmdbData =
     }
 
 /** Manage a global collection of TMDB data sets that are updated daily. */
+@ExperimentalCoroutinesApi
 object DatasetManager {
     private val data = mutableMapOf<String, List<TmdbData>>()
 
     /** Set up the map associating list names to actual lists of TMDB data (dataset) for that list name. */
     init {
-        if (data.isEmpty()) updateData()
+        dailyExportTask(data)
     }
 
     /** Return a dataset for a given list name. */
     fun getDataset(listName: String): List<TmdbData> = data[listName] ?: listOf(TmdbError(listName.getErrorMessage()))
-
-    /** Convert the given TMDB data item to a dataset name (aka list name). */
-    private fun listName(item: TmdbData): String = when (item) {
-        is Collection -> Collection.listName
-        is Keyword -> Keyword.listName
-        is Movie -> Movie.listName
-        is Network -> Network.listName
-        is Person -> Person.listName
-        is ProductionCompany -> ProductionCompany.listName
-        is TvSeries -> TvSeries.listName
-        is TmdbError -> ""
-    }
-
-    private fun updateData() {
-        fun updateData(listName: String) {
-            if (listName.isEmpty()) return
-            //GlobalScope.launch(Dispatchers.Main) {
-                data[listName] = fetchLines(listName)
-            //}
-        }
-
-        TmdbData::class.sealedSubclasses.forEach {
-            val name = it.simpleName ?: "TmdbError"
-            updateData((listName(createDefaultFromType(name))))
-        }
-    }
 
     private fun String.getErrorMessage(): String = "Empty list or invalid list name: '$this!"
 }
