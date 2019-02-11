@@ -43,9 +43,8 @@ private suspend fun fetchLines(subclass: KClass<out TmdbData>): Pair<String, Mut
 }
 
 private fun getListName(subclass: KClass<out TmdbData>): String? {
-    fun getListNameFromDefault(item: TmdbData): String = item.getListName()
     val name = subclass.simpleName ?: return null
-    val listName = getListNameFromDefault(createDefaultFromType(name))
+    val listName = createDefaultFromType(name).getListName()
 
     return if (listName.isNotBlank()) listName else null
 }
