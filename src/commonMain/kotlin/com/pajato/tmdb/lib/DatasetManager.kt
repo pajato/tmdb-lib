@@ -3,6 +3,8 @@ package com.pajato.tmdb.lib
 import com.soywiz.klock.DateTime
 import com.soywiz.klock.DateTime.Companion.now
 import com.soywiz.klock.hours
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
 
 /**
  * Compute the export date for today: if the current time is before 8:00am UTC, use the previous export date, otheriwse
@@ -16,7 +18,7 @@ fun DateTime.toTmdbFormat() = "${this.month1.toTmdbFormat()}_${this.dayOfMonth.t
 fun DateTime.isAfter(time: Int): Boolean = this.hours > time
 
 //TODO: This function should be suspend
-expect fun dailyExportTask(): Map<String, List<TmdbData>>
+expect suspend fun dailyExportTask(): Map<String, List<TmdbData>>
 
 fun getLinesUrl(listName: String): String {
     val result = "http://files.tmdb.org/p/exports/${listName}_${getLastExportDate(now())}.json.gz"
@@ -38,11 +40,12 @@ fun parse(listName: String, line: String): TmdbData =
 /** Manage a global collection of TMDB data sets that are updated daily. */
 object DatasetManager {
     /** Set up the map associating list names to actual lists of TMDB data (dataset) for that list name. */
-    private val data = dailyExportTask()
+    // TODO: Would be much better to extend this object from CoroutineScope to allow manage lifecycle. For now just use GlobalScope
+    private val data = GlobalScope.async { dailyExportTask() }
 
-    //TODO: I believe this task also should be suspend, because all the API is asyncronous. Instead of init data on object creation use async and scope with strict lifecycle
+    // This is completely safe to call this function from UI thread now
     /** Return a dataset for a given list name. */
-    fun getDataset(listName: String): List<TmdbData> = data[listName] ?: listOf(TmdbError(listName.getErrorMessage()))
+    suspend fun getDataset(listName: String): List<TmdbData> = data.await()[listName] ?: listOf(TmdbError(listName.getErrorMessage()))
 
     private fun String.getErrorMessage(): String = "Empty list or invalid list name: '$this!"
 }
