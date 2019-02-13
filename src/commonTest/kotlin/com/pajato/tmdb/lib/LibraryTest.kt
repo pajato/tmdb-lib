@@ -32,15 +32,6 @@ class LibraryTest {
         assertTrue(item is TmdbError, "A non-blank input did not generate an error!")
     }
 
-    // TODO: Commented because to test suspend function you need special wrapper for testing on common code
-    // TODO: See these issues about current status and known workarounds
-    // TODO: https://youtrack.jetbrains.com/issue/KT-22228
-    // TODO: https://youtrack.jetbrains.com/issue/KT-19813
-    /*@Test fun `when the dataset manager singleton is initialized verify data is correct`() = runBlocking {
-        assertTrue(DatasetManager.
-        getDataset("") != null, "Got a null dataset!")
-    }*/
-
     @Test fun `when the TMDB network data is accessed the count is greater than 0`() {
         testTmdbData("tv_network_ids")
     }
