@@ -3,11 +3,8 @@ package com.pajato.tmdb.lib
 import com.soywiz.klock.DateTime
 import com.soywiz.klock.DateTime.Companion.now
 import com.soywiz.klock.hours
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 
 /**
  * Compute the export date for today: if the current time is before 8:00am UTC, use the previous export date, otheriwse
@@ -20,7 +17,8 @@ fun Int.toTmdbFormat() = if (this > 9) "$this" else "0$this"
 fun DateTime.toTmdbFormat() = "${this.month1.toTmdbFormat()}_${this.dayOfMonth.toTmdbFormat()}_${this.yearInt}"
 fun DateTime.isAfter(time: Int): Boolean = this.hours > time
 
-expect fun dailyExportTask(data: MutableMap<String, List<TmdbData>>)
+//TODO: This function should be suspend
+expect suspend fun dailyExportTask(): Map<String, List<TmdbData>>
 
 fun getLinesUrl(listName: String): String {
     val result = "http://files.tmdb.org/p/exports/${listName}_${getLastExportDate(now())}.json.gz"
@@ -40,17 +38,14 @@ fun parse(listName: String, line: String): TmdbData =
     }
 
 /** Manage a global collection of TMDB data sets that are updated daily. */
-@ExperimentalCoroutinesApi
 object DatasetManager {
-    private val data = mutableMapOf<String, List<TmdbData>>()
-
     /** Set up the map associating list names to actual lists of TMDB data (dataset) for that list name. */
-    init {
-        dailyExportTask(data)
-    }
+    // TODO: Would be much better to extend this object from CoroutineScope to allow manage lifecycle. For now just use GlobalScope
+    private val data = GlobalScope.async { dailyExportTask() }
 
+    // This is completely safe to call this function from UI thread now
     /** Return a dataset for a given list name. */
-    fun getDataset(listName: String): List<TmdbData> = data[listName] ?: listOf(TmdbError(listName.getErrorMessage()))
+    suspend fun getDataset(listName: String): List<TmdbData> = data.await()[listName] ?: listOf(TmdbError(listName.getErrorMessage()))
 
     private fun String.getErrorMessage(): String = "Empty list or invalid list name: '$this!"
 }
