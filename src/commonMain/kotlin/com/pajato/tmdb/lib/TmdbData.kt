@@ -1,9 +1,45 @@
 package com.pajato.tmdb.lib
 
+import com.soywiz.klock.DateTime
+import com.soywiz.klock.DateTime.Companion.now
+import com.soywiz.klock.hours
+
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 const val tmdbBlankErrorMessage = "Blank JSON argument encountered."
+const val ANONYMOUS = "anonymous" // provided for testing/code coverage only.
+
+/**
+ * Compute the export date for today: if the current time is before 8:00am UTC, use the previous export date, otherwise
+ * use today's export data.
+ */
+fun getLastExportDate(timestamp: DateTime): String =
+    if (timestamp.isAfter(8)) timestamp.toTmdbFormat() else (timestamp - 24.hours).toTmdbFormat()
+
+fun Int.toTmdbFormat() = if (this > 9) "$this" else "0$this"
+fun DateTime.toTmdbFormat() = "${this.month1.toTmdbFormat()}_${this.dayOfMonth.toTmdbFormat()}_${this.yearInt}"
+fun DateTime.isAfter(time: Int): Boolean = this.hours > time
+
+/** Encapsulate the task of importing/ingesting the TMDB exported data sets. */
+expect suspend fun dailyExportIngestionTask(): Map<String, List<TmdbData>>
+
+/** Return a URL which can access a TMDB export data set or a sentinel value for an invalid list name. */
+fun getLinesUrl(listName: String): String =
+    if (listName != ANONYMOUS) "http://files.tmdb.org/p/exports/${listName}_${getLastExportDate(now())}.json.gz" else ""
+
+/** Parse a TMDB export data set record given the list name and the line to parse. */
+fun parse(listName: String, line: String): TmdbData =
+    when (listName) {
+        Collection.listName -> Collection.create(line)
+        Keyword.listName -> Keyword.create(line)
+        Movie.listName -> Movie.create(line)
+        Network.listName -> Network.create(line)
+        Person.listName -> Person.create(line)
+        ProductionCompany.listName -> ProductionCompany.create(line)
+        TvSeries.listName -> TvSeries.create(line)
+        else -> TmdbError("unsupported type: $listName.")
+    }
 
 /** Return a TMDB subclass given a type string. */
 fun createDefaultFromType(type: String): TmdbData = when (type) {
@@ -45,7 +81,6 @@ data class Collection(val id: Int = 0, val name: String = "") : TmdbData() {
     companion object : TmdbDataFactory {
         override val listName = "collection_ids"
         override fun create(json: String): TmdbData = createFromJson(json, Collection())
-        //override fun getJson():
     }
 }
 
