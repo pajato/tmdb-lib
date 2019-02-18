@@ -6,24 +6,22 @@ package com.pajato.tmdb.lib
 import com.soywiz.klock.DateTime
 import com.soywiz.klock.hours
 import com.soywiz.klock.seconds
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
-import kotlin.test.fail
+import kotlin.test.*
 
 class LibraryTest {
     private fun testTmdbData(name: String) {
         val nonHomogenousCollection = "The $name collection contains inconsistent typed data!"
         val list = listOf(createDefaultFromType(name)) //fetchLines(name)
+        assertTrue(list.size == 1 && list[0] !is TmdbError, "Detected an error in the $name default creation.")
         assertTrue(list.isNotEmpty(), "Incorrect number of $name!")
         when (name) {
-            Collection.listName -> assertTrue(list[0] is Collection, nonHomogenousCollection)
-            Keyword.listName -> assertTrue(list[0] is Keyword, nonHomogenousCollection)
-            Movie.listName -> assertTrue(list[0] is Movie, nonHomogenousCollection)
-            Network.listName -> assertTrue(list[0] is Network, nonHomogenousCollection)
-            Person.listName -> assertTrue(list[0] is Person, nonHomogenousCollection)
-            ProductionCompany.listName -> assertTrue(list[0] is ProductionCompany, nonHomogenousCollection)
-            TvSeries.listName -> assertTrue(list[0] is TvSeries, nonHomogenousCollection)
+            "Collection" -> assertTrue(list[0] is Collection, nonHomogenousCollection)
+            "Keyword" -> assertTrue(list[0] is Keyword, nonHomogenousCollection)
+            "Movie" -> assertTrue(list[0] is Movie, nonHomogenousCollection)
+            "Network" -> assertTrue(list[0] is Network, nonHomogenousCollection)
+            "Person" -> assertTrue(list[0] is Person, nonHomogenousCollection)
+            "ProductionCompany" -> assertTrue(list[0] is ProductionCompany, nonHomogenousCollection)
+            "TvSeries" -> assertTrue(list[0] is TvSeries, nonHomogenousCollection)
             else -> fail("Unsupported type: $name.")
         }
     }
@@ -33,31 +31,31 @@ class LibraryTest {
     }
 
     @Test fun `when the TMDB network data is accessed the count is greater than 0`() {
-        testTmdbData("tv_network_ids")
+        testTmdbData("Network")
     }
 
     @Test fun `when the TMDB movie data is accessed the count is greater than 0`() {
-        testTmdbData("movie_ids")
+        testTmdbData("Movie")
     }
 
     @Test fun `when the TMDB tv series data is accessed the count is greater than 0`() {
-        testTmdbData("tv_series_ids")
+        testTmdbData("TvSeries")
     }
 
     @Test fun `when the TMDB person data is accessed the count is greater than 0`() {
-        testTmdbData("person_ids")
+        testTmdbData("Person")
     }
 
     @Test fun `when the TMDB production company data is accessed the count is greater than 0`() {
-        testTmdbData("production_company_ids")
+        testTmdbData("ProductionCompany")
     }
 
     @Test fun `when the TMDB collections data is accessed the count is greater than 0`() {
-        testTmdbData("collection_ids")
+        testTmdbData("Collection")
     }
 
     @Test fun `when the TMDB keywords data is accessed the count is greater than 0`() {
-        testTmdbData("keyword_ids")
+        testTmdbData("Keyword")
     }
 
     @Test fun `when creating a collection with a blank JSON argument that an error is signalled`() {
@@ -88,16 +86,6 @@ class LibraryTest {
         testEmptyTmdbDataItem(TvSeries.create(""))
     }
 
-    private val json = """{"id":234,"name":"fred","value":98.65, "adult":true}"""
-
-    // TODO: Commented because to test suspend function you need special wrapper for testing on common code
-    // TODO: See these issues about current status and known workarounds
-    // TODO: https://youtrack.jetbrains.com/issue/KT-22228
-    // TODO: https://youtrack.jetbrains.com/issue/KT-19813
-    /*@Test fun `when the TmdbDatasetManager object is created with an invalid name verify an error subclass`() {
-        val uut = DatasetManager.getDataset("foo")
-        assertEquals(uut.size, 1, "Invalid size for an invalid name!")
-    }*/
 
     @Test fun `when the last export date is before 8am UTC verify previous day`() {
         val timestamp1 = DateTime.fromUnix(0L)
