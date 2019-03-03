@@ -1,70 +1,7 @@
 package com.pajato.tmdb.lib
 
-import com.soywiz.klock.DateTime
-import com.soywiz.klock.DateTime.Companion.now
-import com.soywiz.klock.hours
-
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
-
-const val tmdbBlankErrorMessage = "Blank JSON argument encountered."
-const val ANONYMOUS = "anonymous" // provided for testing/code coverage only.
-
-/**
- * Compute the export date for today: if the current time is before 8:00am UTC, use the previous export date, otherwise
- * use today's export data.
- */
-fun getLastExportDate(timestamp: DateTime): String =
-    if (timestamp.isAfter(8)) timestamp.toTmdbFormat() else (timestamp - 24.hours).toTmdbFormat()
-
-fun Int.toTmdbFormat() = if (this > 9) "$this" else "0$this"
-fun DateTime.toTmdbFormat() = "${this.month1.toTmdbFormat()}_${this.dayOfMonth.toTmdbFormat()}_${this.yearInt}"
-fun DateTime.isAfter(time: Int): Boolean = this.hours > time
-
-/** Encapsulate the task of importing/ingesting the TMDB exported data sets. */
-expect suspend fun dailyExportIngestionTask(): Map<String, List<TmdbData>>
-
-/** Return a URL which can access a TMDB export data set or a sentinel value for an invalid list name. */
-fun getLinesUrl(listName: String): String =
-    if (listName != ANONYMOUS) "http://files.tmdb.org/p/exports/${listName}_${getLastExportDate(now())}.json.gz" else ""
-
-/** Parse a TMDB export data set record given the list name and the line to parse. */
-fun parse(listName: String, line: String): TmdbData =
-    when (listName) {
-        Collection.listName -> Collection.create(line)
-        Keyword.listName -> Keyword.create(line)
-        Movie.listName -> Movie.create(line)
-        Network.listName -> Network.create(line)
-        Person.listName -> Person.create(line)
-        ProductionCompany.listName -> ProductionCompany.create(line)
-        TvSeries.listName -> TvSeries.create(line)
-        else -> TmdbError("unsupported type: $listName.")
-    }
-
-/** Return a TMDB subclass given a type string. */
-fun createDefaultFromType(type: String): TmdbData = when (type) {
-    "Collection" -> Collection()
-    "Keyword" -> Keyword()
-    "Movie" -> Movie()
-    "Network" -> Network()
-    "Person" -> Person()
-    "ProductionCompany" -> ProductionCompany()
-    "TvSeries" -> TvSeries()
-    else -> TmdbError("Attempt to create an invalid TMDB data item!")
-}
-
-/** Return a TMDB subclass for a given TMDB default data item and a JSON spec. */
-fun createFromJson(json: String, item: TmdbData): TmdbData =
-    if (json.isBlank()) TmdbError(tmdbBlankErrorMessage) else when (item) {
-        is Collection -> Json.parse(Collection.serializer(), json)
-        is Keyword -> Json.parse(Keyword.serializer(), json)
-        is Network -> Json.parse(Network.serializer(), json)
-        is ProductionCompany -> Json.parse(ProductionCompany.serializer(), json)
-        is Movie -> Json.parse(Movie.serializer(), json)
-        is Person -> Json.parse(Person.serializer(), json)
-        is TvSeries -> Json.parse(TvSeries.serializer(), json)
-        is TmdbError -> item
-    }
+import kotlin.reflect.KClass
 
 /** The wrapper class for TMDB dataset subclasses. */
 sealed class TmdbData
@@ -152,7 +89,7 @@ data class TvSeries(val id: Int = -1, val original_name: String = "", val popula
 /** A special TMDB error class providing granular message data for errors. */
 data class TmdbError(val message: String) : TmdbData()
 
-/** An extension to access the listname given a TmdbData item. */
+/** An extension to access the list name given a TmdbData item. */
 fun TmdbData.getListName(): String = when (this) {
     is Collection -> Collection.listName
     is Keyword -> Keyword.listName
@@ -162,4 +99,10 @@ fun TmdbData.getListName(): String = when (this) {
     is ProductionCompany -> ProductionCompany.listName
     is TvSeries -> TvSeries.listName
     is TmdbError -> ""
+}
+
+/** An extensions to return a TMDB export data set list name for a given subclass. */
+fun KClass<out TmdbData>.getListName(): String {
+    val name = this.simpleName ?: return ANONYMOUS
+    return createDefaultFromType(name).getListName()
 }
