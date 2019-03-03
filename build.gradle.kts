@@ -27,6 +27,7 @@ kotlin {
             dependencies {
                 implementation("org.jetbrains.kotlin:kotlin-test-common")
                 implementation("org.jetbrains.kotlin:kotlin-test-annotations-common")
+                //implementation("io.ktor:ktor-server-core:1.1.2")
             }
         }
 
@@ -42,6 +43,8 @@ kotlin {
             dependencies {
                 implementation("org.jetbrains.kotlin:kotlin-test")
                 implementation("org.jetbrains.kotlin:kotlin-test-junit")
+                implementation("io.ktor:ktor-server-core:1.1.2")
+                implementation("io.ktor:ktor-server-jetty:1.1.2")
             }
         }
     }

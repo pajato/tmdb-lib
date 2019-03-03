@@ -1,6 +1,10 @@
 package com.pajato.tmdb.lib
 
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
 
 /** Manage a global collection of TMDB data sets that are updated daily. */
 @ExperimentalCoroutinesApi
@@ -10,9 +14,9 @@ object DatasetManager {
     private val cache = mutableMapOf<String, List<TmdbData>>()
 
     /** Return a dataset for a given list name. Note that this is safe to do from the UI/Main thread. */
-    suspend fun getDataset(listName: String): List<TmdbData> {
+    suspend fun getDataset(listName: String, baseUrl: String = "http://files.tmdb.org/p/exports"): List<TmdbData> {
         suspend fun loadCache(): List<TmdbData> {
-            val data = GlobalScope.getDataAsync()
+            val data = GlobalScope.getDataAsync(baseUrl)
             updateCache(data)
             return data.await()[listName] ?: listOf(TmdbError("Empty list or invalid list name: $listName!"))
         }
@@ -33,7 +37,8 @@ object DatasetManager {
 //    }
 
     /** Provide an extension operation to fetch the TMDB export data sets. */
-    private fun CoroutineScope.getDataAsync(): Deferred<Map<String, List<TmdbData>>> = this.async { dailyExportIngestionTask() }
+    private fun CoroutineScope.getDataAsync(baseUrl: String): Deferred<Map<String, List<TmdbData>>> =
+        this.async { dailyCacheRefreshTask(baseUrl) }
 
     /** Update the local cache with asynchronously fetched TMDB export data sets. */
     private suspend fun updateCache(data: Deferred<Map<String, List<TmdbData>>>) {

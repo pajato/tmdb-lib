@@ -90,7 +90,7 @@ class LibraryTest {
     @Test fun `when the last export date is before 8am UTC verify previous day`() {
         val timestamp1 = DateTime.fromUnix(0L)
         val timestamp2 = timestamp1 + 8.hours + 3599.seconds
-        assertEquals("12_31_1969", getLastExportDate(timestamp1), "Invalid Unix big bang date format!")
+        assertEquals("12_31_1969", getLastExportDate(timestamp1), "Invalid Unix date format!")
         assertEquals("12_31_1969", getLastExportDate(timestamp2), "Invalid date format!")
     }
 
@@ -102,7 +102,7 @@ class LibraryTest {
     @Test fun `when the last export date is now verify same day`() {
         val timestamp = DateTime.now()
         val formattedTimestamp = getLastExportDate(timestamp)
-        val linesUrl = getLinesUrl("network_ids")
+        val linesUrl = getLinesUrl("network_ids", "")
         assertTrue(linesUrl.contains(formattedTimestamp), "Invalid date format!")
     }
 
