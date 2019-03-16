@@ -1,7 +1,6 @@
 package com.pajato.tmdb.lib
 
 import kotlinx.serialization.Serializable
-import kotlin.reflect.KClass
 
 /** The wrapper class for TMDB dataset subclasses. */
 sealed class TmdbData
@@ -99,10 +98,4 @@ fun TmdbData.getListName(): String = when (this) {
     is ProductionCompany -> ProductionCompany.listName
     is TvSeries -> TvSeries.listName
     is TmdbError -> ""
-}
-
-/** An extensions to return a TMDB export data set list name for a given subclass. */
-fun KClass<out TmdbData>.getListName(): String {
-    val name = this.simpleName ?: return ANONYMOUS
-    return createDefaultFromType(name).getListName()
 }

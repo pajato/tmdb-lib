@@ -9,9 +9,31 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
 import kotlin.reflect.KClass
 
-
 const val tmdbBlankErrorMessage = "Blank JSON argument encountered."
 const val ANONYMOUS = "anonymous" // provided for testing/code coverage only.
+
+/** The TMDB dataset fetch configuration to differentiate production (defaults) vs testing access. */
+class FetchConfig(
+    val baseUrl: String = "http://files.tmdb.org/p/exports/",
+    val date: String = getLastExportDate(now()),
+    val readTimeout: Int = 800,
+    val connectTimeout: Int = 200
+) {
+    fun getUrl(listName: String) = if (baseUrl.isBlank()) "" else "$baseUrl${listName}_$date.json.gz"
+}
+
+/** The platform dependent task used to refresh the cached TMDB data set for a given URL. */
+expect suspend fun getEntry(listName: String, config: FetchConfig): Pair<String, MutableList<TmdbData>>
+
+/** Provide a coroutine to handle fetching the daily exported TMDB datasets. */
+suspend fun dailyCacheRefreshTask(config: FetchConfig): Map<String, List<TmdbData>> = coroutineScope {
+    fun isNotTmdbError(kClass: KClass<out TmdbData>) = kClass.simpleName != TmdbError::class.simpleName
+
+    // Asynchronously fetchList the exported TMDB data set for each TmdbData subclass.
+    TmdbData::class.sealedSubclasses
+        .filter { kClass -> isNotTmdbError(kClass) }
+        .map { kClass -> async { fetchLines(kClass, config) } }.awaitAll().toMap()
+}
 
 /**
  * Compute the export date for a given timestamp: if the time is before 8:00am UTC, use the previous export date,
@@ -20,32 +42,16 @@ const val ANONYMOUS = "anonymous" // provided for testing/code coverage only.
 fun getLastExportDate(timestamp: DateTime): String =
     if (timestamp.isAfter(8)) timestamp.toTmdbFormat() else (timestamp - 24.hours).toTmdbFormat()
 
-fun Int.toTmdbFormat() = if (this > 9) "$this" else "0$this"
-fun DateTime.toTmdbFormat() = "${this.month1.toTmdbFormat()}_${this.dayOfMonth.toTmdbFormat()}_${this.yearInt}"
-fun DateTime.isAfter(time: Int): Boolean = this.hours > time
-
-/** Encapsulate the task of refreshing the cached TMDB data set for a given list. */
-expect suspend fun getEntry(listName: String, baseUrl: String): Pair<String, MutableList<TmdbData>>
-
-/** Provide a coroutine to handle fetching the daily exported TMDB datasets. */
-suspend fun dailyCacheRefreshTask(baseUrl: String): Map<String, List<TmdbData>> = coroutineScope {
-    // Asynchronously fetch the exported TMDB data set for each TmdbData subclass.
-    TmdbData::class.sealedSubclasses.map { kClass -> async { fetchLines(kClass, baseUrl) } }.awaitAll().toMap()
-}
-
 /** Fetch and parse the export data set records for the given TmdbData subclass. */
-suspend fun fetchLines(subclass: KClass<out TmdbData>, baseUrl: String): Pair<String, MutableList<TmdbData>> {
+suspend fun fetchLines(subclass: KClass<out TmdbData>, config: FetchConfig): Pair<String, MutableList<TmdbData>> {
     val listName = subclass.getListName()
-    return if (listName == "" || listName == ANONYMOUS) getErrorEntry() else getEntry(listName, baseUrl)
+    val url = config.getUrl(listName)
+    return if (listName.isBlank() || url.isBlank()) getErrorEntry() else getEntry(listName, config)
 }
 
 /** Provide an error entry for testing and network errors. */
 fun getErrorEntry(): Pair<String, MutableList<TmdbData>> =
     ANONYMOUS to mutableListOf<TmdbData>(TmdbError("Ignorable TMDB subclass!"))
-
-/** Return a URL which can access a TMDB export data set or a sentinel value for an invalid list name. */
-fun getLinesUrl(listName: String, baseUrl: String): String =
-    if (listName != ANONYMOUS) "$baseUrl/${listName}_${getLastExportDate(now())}.json.gz" else ""
 
 /** Parse a TMDB export data set record given the list name and the line to parse. */
 fun parse(listName: String, line: String): TmdbData =
@@ -57,7 +63,7 @@ fun parse(listName: String, line: String): TmdbData =
         Person.listName -> Person.create(line)
         ProductionCompany.listName -> ProductionCompany.create(line)
         TvSeries.listName -> TvSeries.create(line)
-        else -> TmdbError("unsupported type: $listName.")
+        else -> TmdbError("Unsupported type: $listName.")
     }
 
 /** Return a TMDB subclass given a type string. */
@@ -84,3 +90,15 @@ fun createFromJson(json: String, item: TmdbData): TmdbData =
         is TvSeries -> Json.parse(TvSeries.serializer(), json)
         is TmdbError -> item
     }
+
+// Extension functions
+
+fun Int.toTmdbFormat() = if (this > 9) "$this" else "0$this"
+fun DateTime.toTmdbFormat() = "${this.month1.toTmdbFormat()}_${this.dayOfMonth.toTmdbFormat()}_${this.yearInt}"
+fun DateTime.isAfter(time: Int): Boolean = this.hours > time
+
+/** An extensions to return a TMDB export data set list name for a given subclass. */
+fun KClass<out TmdbData>.getListName(): String {
+    val name = this.simpleName ?: return ANONYMOUS
+    return createDefaultFromType(name).getListName()
+}

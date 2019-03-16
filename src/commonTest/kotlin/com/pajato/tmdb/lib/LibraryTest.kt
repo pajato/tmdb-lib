@@ -6,7 +6,10 @@ package com.pajato.tmdb.lib
 import com.soywiz.klock.DateTime
 import com.soywiz.klock.hours
 import com.soywiz.klock.seconds
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.test.fail
 
 class LibraryTest {
     private fun testTmdbData(name: String) {
@@ -99,13 +102,6 @@ class LibraryTest {
         assertEquals("01_01_1970", getLastExportDate(timestamp), "Invalid date format!")
     }
 
-    @Test fun `when the last export date is now verify same day`() {
-        val timestamp = DateTime.now()
-        val formattedTimestamp = getLastExportDate(timestamp)
-        val linesUrl = getLinesUrl("network_ids", "")
-        assertTrue(linesUrl.contains(formattedTimestamp), "Invalid date format!")
-    }
-
     @Test fun `when an invalid list name is parsed verify a correct error message`() {
         assertTrue(parse("invalidListName", "") is TmdbError)
     }
@@ -113,5 +109,16 @@ class LibraryTest {
     @Test fun `when an error item is passed created verify it matches the default`() {
         val errorItem = TmdbError("A default error item.")
         assertEquals(errorItem, createFromJson("{}", errorItem), "Invalid error item creation!")
+    }
+
+    @Test fun `when the data access config object is defaulted verify correct results`() {
+        val config = FetchConfig()
+        assertEquals("http://files.tmdb.org/p/exports/", config.baseUrl, "Config base URL error!")
+        assertEquals(10, config.date.length, "Config date error!")
+    }
+
+    @Test fun `when an invalid list name is parsed verify an error result`() {
+        val result = parse("", "")
+        assertTrue(result is TmdbError, "Parsing error detection failed!")
     }
 }

@@ -14,9 +14,9 @@ object DatasetManager {
     private val cache = mutableMapOf<String, List<TmdbData>>()
 
     /** Return a dataset for a given list name. Note that this is safe to do from the UI/Main thread. */
-    suspend fun getDataset(listName: String, baseUrl: String = "http://files.tmdb.org/p/exports"): List<TmdbData> {
+    suspend fun getDataset(listName: String, config: FetchConfig = FetchConfig()): List<TmdbData> {
         suspend fun loadCache(): List<TmdbData> {
-            val data = GlobalScope.getDataAsync(baseUrl)
+            val data = GlobalScope.getDataAsync(config)
             updateCache(data)
             return data.await()[listName] ?: listOf(TmdbError("Empty list or invalid list name: $listName!"))
         }
@@ -26,7 +26,7 @@ object DatasetManager {
 
     /** Provide a never-ending coroutine that will refresh the export data set cache. */
 //    suspend fun scheduleDailyFetches(timestamp: DateTime) {
-//        fun getDelta(): Int /* milliseonds till noon UTC next. */ =
+//        fun getDelta(): Int /* milliseconds till noon UTC next. */ =
 //            if (timestamp.hours > 12) (24 - (timestamp.hours - 12)) else (12 - timestamp.hours)
 //
 //        while (true) {
@@ -36,9 +36,9 @@ object DatasetManager {
 //        }
 //    }
 
-    /** Provide an extension operation to fetch the TMDB export data sets. */
-    private fun CoroutineScope.getDataAsync(baseUrl: String): Deferred<Map<String, List<TmdbData>>> =
-        this.async { dailyCacheRefreshTask(baseUrl) }
+    /** Provide an extension operation to fetchList the TMDB export data sets. */
+    private fun CoroutineScope.getDataAsync(config: FetchConfig): Deferred<Map<String, List<TmdbData>>> =
+        this.async { dailyCacheRefreshTask(config) }
 
     /** Update the local cache with asynchronously fetched TMDB export data sets. */
     private suspend fun updateCache(data: Deferred<Map<String, List<TmdbData>>>) {
