@@ -3,6 +3,8 @@ plugins {
     id("kotlinx-serialization") version "1.3.21"
 }
 
+val ktor_version = "1.1.2"
+
 repositories {
     maven("https://dl.bintray.com/kotlin/kotlin-eap")
     jcenter()
@@ -27,7 +29,6 @@ kotlin {
             dependencies {
                 implementation("org.jetbrains.kotlin:kotlin-test-common")
                 implementation("org.jetbrains.kotlin:kotlin-test-annotations-common")
-                //implementation("io.ktor:ktor-server-core:1.1.2")
             }
         }
 
@@ -43,8 +44,6 @@ kotlin {
             dependencies {
                 implementation("org.jetbrains.kotlin:kotlin-test")
                 implementation("org.jetbrains.kotlin:kotlin-test-junit")
-                implementation("io.ktor:ktor-server-core:1.1.2")
-                implementation("io.ktor:ktor-server-jetty:1.1.2")
             }
         }
     }
@@ -58,3 +57,11 @@ task("generateSecureProperties") {
         }
     }
 }
+
+
+tasks.register<Copy>("copyResources") {
+    from(file("$projectDir/src/jvmTest/resources/"))
+    into(file("$buildDir/classes/kotlin/jvm/test/"))
+}
+
+tasks.get(name = "jvmTest").dependsOn += tasks.get(name = "copyResources")
