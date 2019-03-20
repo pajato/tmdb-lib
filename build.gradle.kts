@@ -3,8 +3,6 @@ plugins {
     id("kotlinx-serialization") version "1.3.21"
 }
 
-val ktor_version = "1.1.2"
-
 repositories {
     maven("https://dl.bintray.com/kotlin/kotlin-eap")
     jcenter()
@@ -49,6 +47,7 @@ kotlin {
     }
 }
 
+// for future functionality.
 task("generateSecureProperties") {
     doLast {
         File("$projectDir/src/commonMain/resources", "secureProps.txt").apply {
