@@ -7,7 +7,7 @@ import java.net.URL
 import java.util.zip.GZIPInputStream
 
 /** Return a list using the given name handling any exceptions. */
-actual suspend fun getEntry(listName: String, config: FetchConfig): Pair<String, MutableList<TmdbData>> =
+internal actual suspend fun getEntry(listName: String, config: FetchConfig): Pair<String, MutableList<TmdbData>> =
     withContext(Dispatchers.IO) {
         try {
             listName.fetchData(config)
@@ -17,7 +17,7 @@ actual suspend fun getEntry(listName: String, config: FetchConfig): Pair<String,
     }
 
 /** Return a list for the receiver possibly throwing a connection exception. */
-fun String.fetchData(config: FetchConfig): Pair<String, MutableList<TmdbData>> =
+private fun String.fetchData(config: FetchConfig): Pair<String, MutableList<TmdbData>> =
     URL(config.getUrl(this)).openConnection().apply {
         readTimeout = config.readTimeout
         connectTimeout = config.connectTimeout
