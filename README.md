@@ -1,4 +1,5 @@
 # tmdb-lib
+
 ![TMDB PoweredBy Logo](images/powered-by-tmdb.png)
 
 ## Overview
@@ -108,3 +109,12 @@ data class TvSeries(val id: Int = -1, val original_name: String = "", val popula
 /** A special TMDB error class providing granular message data for errors. */
 data class TmdbError(val message: String) : TmdbData()
 ```
+
+
+KOH Talk Links:
+
+Google doc link: https://docs.google.com/document/d/1_VSRV1afGchpPn4SqhkXgWPsbRshhKyPQga2U1bZgMM/edit?usp=sharing
+
+Software Developer definition: https://www.bls.gov/ooh/computer-and-information-technology/software-developers.htm#tab-2
+
+TMDB export data: https://developers.themoviedb.org/3/getting-started/daily-file-exports
