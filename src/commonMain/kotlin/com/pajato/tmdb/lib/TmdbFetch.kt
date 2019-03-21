@@ -98,6 +98,18 @@ internal fun Int.toTmdbFormat() = if (this > 9) "$this" else "0$this"
 internal fun DateTime.toTmdbFormat() = "${this.month1.toTmdbFormat()}_${this.dayOfMonth.toTmdbFormat()}_${this.yearInt}"
 internal fun DateTime.isAfter(time: Int): Boolean = this.hours > time
 
+/** An extension to access the list name given a TmdbData item. */
+internal fun TmdbData.getListName(): String = when (this) {
+    is Collection -> Collection.listName
+    is Keyword -> Keyword.listName
+    is Movie -> Movie.listName
+    is Network -> Network.listName
+    is Person -> Person.listName
+    is ProductionCompany -> ProductionCompany.listName
+    is TvSeries -> TvSeries.listName
+    is TmdbError -> ""
+}
+
 /** An extensions to return a TMDB export data set list name for a given subclass. */
 internal fun KClass<out TmdbData>.getListName(): String {
     val name = this.simpleName ?: return ANONYMOUS

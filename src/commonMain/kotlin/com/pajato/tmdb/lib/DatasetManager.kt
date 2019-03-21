@@ -16,7 +16,15 @@ object DatasetManager {
     /** Return a dataset for a given list name. Note that this is safe to do from the UI/Main thread. */
     suspend fun getDataset(listName: String, config: FetchConfig = FetchConfig()): List<TmdbData> {
         suspend fun loadCache(): List<TmdbData> {
-            val data = GlobalScope.getDataAsync(config)
+            suspend fun updateCache(data: Deferred<Map<String, List<TmdbData>>>) {
+                data.await()
+                for (entry in data.getCompleted().entries) {
+                    if (entry.key == ANONYMOUS) continue
+                    cache[entry.key] = entry.value
+                }
+            }
+
+            val data = GlobalScope.async { dailyCacheRefreshTask(config) }
             updateCache(data)
             return data.await()[listName] ?: listOf(TmdbError("Empty list or invalid list name: $listName!"))
         }
@@ -35,17 +43,4 @@ object DatasetManager {
 //            updateCache(GlobalScope.getDataAsync())
 //        }
 //    }
-
-    /** Provide an extension operation to fetchList the TMDB export data sets. */
-    private fun CoroutineScope.getDataAsync(config: FetchConfig): Deferred<Map<String, List<TmdbData>>> =
-        this.async { dailyCacheRefreshTask(config) }
-
-    /** Update the local cache with asynchronously fetched TMDB export data sets. */
-    private suspend fun updateCache(data: Deferred<Map<String, List<TmdbData>>>) {
-        data.await()
-        for (entry in data.getCompleted().entries) {
-            if (entry.key == ANONYMOUS) continue
-            cache[entry.key] = entry.value
-        }
-    }
 }
