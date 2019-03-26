@@ -112,7 +112,7 @@ class LibraryTest {
     }
 
     @Test fun `when the data access config object is defaulted verify correct results`() {
-        val config = FetchConfig()
+        val config = FetchConfigImpl()
         assertEquals("http://files.tmdb.org/p/exports/", config.baseUrl, "Config base URL error!")
         assertEquals(10, config.date.length, "Config date error!")
     }
@@ -121,4 +121,5 @@ class LibraryTest {
         val result = parse("", "")
         assertTrue(result is TmdbError, "Parsing error detection failed!")
     }
+
 }
