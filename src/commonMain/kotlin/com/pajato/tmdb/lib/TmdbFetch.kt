@@ -12,14 +12,34 @@ import kotlin.reflect.KClass
 internal const val tmdbBlankErrorMessage = "Blank JSON argument encountered."
 internal const val ANONYMOUS = "anonymous" // provided for testing/code coverage only.
 
-/** The TMDB dataset fetch configuration to differentiate production (defaults) vs testing access. */
-class FetchConfig(
-    val baseUrl: String = "http://files.tmdb.org/p/exports/",
-    val date: String = getLastExportDate(now()),
-    val readTimeout: Int = 800,
-    val connectTimeout: Int = 200
-) {
-    fun getUrl(listName: String) = if (baseUrl.isBlank()) "" else "$baseUrl${listName}_$date.json.gz"
+/** The TMDB dataset fetch configuration to differentiate production vs testing access. */
+interface FetchConfig {
+    val baseUrl: String
+    val date: String
+    val readTimeout: Int
+    val connectTimeout: Int
+    val updateInterval: Long
+    val updateAction: () -> Boolean
+    //    val baseUrl: String = ,
+    //    val date: String = ,
+    //    val readTimeout: Int = 800,
+    //    val connectTimeout: Int = 200,
+    //    val updateInterval: Long = 24L * 60 * 60 * 1000,
+
+
+    /** Return the empty string or a URL with a valid TMDB dataset path. */
+    fun getUrl(listName: String) =
+        if (listName.isBlank() || baseUrl.isBlank()) "" else "$baseUrl${listName}_$date.json.gz"
+}
+
+/** The production implementation for the daily fetches. */
+internal class FetchConfigImpl : FetchConfig {
+    override val baseUrl: String = "http://files.tmdb.org/p/exports/"
+    override val date: String = getLastExportDate(now())
+    override val readTimeout: Int = 800 // Milliseconds
+    override val connectTimeout: Int = 200 // Milliseconds
+    override val updateInterval: Long = 24L * 60 * 60 * 1000 // Milliseconds
+    override val updateAction: () -> Boolean = { true }
 }
 
 /** The platform dependent task used to refresh the cached TMDB data set for a given URL. */
