@@ -8,13 +8,14 @@ import com.soywiz.klock.hours
 import com.soywiz.klock.seconds
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
 class LibraryTest {
     private fun testTmdbData(name: String) {
         val nonHomogenousCollection = "The $name collection contains inconsistent typed data!"
-        val list = listOf(createDefaultFromType(name)) //fetchLines(name)
+        val list = listOf(createDefaultFromType(name))
         assertTrue(list.size == 1 && list[0] !is TmdbError, "Detected an error in the $name default creation.")
         assertTrue(list.isNotEmpty(), "Incorrect number of $name!")
         when (name) {
@@ -122,4 +123,12 @@ class LibraryTest {
         assertTrue(result is TmdbError, "Parsing error detection failed!")
     }
 
+    @Test fun `verify that the production fetch configuration action works correctly`() {
+        val uutWithDefault = FetchConfigImpl()
+        assertTrue(uutWithDefault.updateAction(), "Wrong result!")
+        val uutWithoutOverride = FetchConfigImpl(false)
+        assertTrue(uutWithoutOverride.updateAction(), "Wrong result!")
+        val uutWithOverride = FetchConfigImpl(true)
+        assertFalse(uutWithOverride.updateAction(), "Wrong result!")
+    }
 }
