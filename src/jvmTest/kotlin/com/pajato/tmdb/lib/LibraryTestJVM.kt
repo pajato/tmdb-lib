@@ -131,5 +131,17 @@ class LibraryTestJVM {
         }
     }
 
+    @Test
+    fun `test that the production fetch config can terminate`() {
+        DatasetManager.resetCache()
+        runBlocking {
+            val config = FetchConfigImpl(true)
+            val result = DatasetManager.getDataset(Collection.listName, config)
+            assertEquals(1, result.size, "Wrong size!")
+            assertTrue(result[0] is TmdbError)
+        }
+
+    }
+
 }
 

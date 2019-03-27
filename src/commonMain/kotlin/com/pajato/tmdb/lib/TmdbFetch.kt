@@ -32,14 +32,14 @@ interface FetchConfig {
         if (listName.isBlank() || baseUrl.isBlank()) "" else "$baseUrl${listName}_$date.json.gz"
 }
 
-/** The production implementation for the daily fetches. */
-internal class FetchConfigImpl : FetchConfig {
+/** The production implementation of the fetch configuration for the daily fetches. */
+internal class FetchConfigImpl(private val terminationOverride: Boolean = false) : FetchConfig {
     override val baseUrl: String = "http://files.tmdb.org/p/exports/"
     override val date: String = getLastExportDate(now())
     override val readTimeout: Int = 800 // Milliseconds
     override val connectTimeout: Int = 200 // Milliseconds
     override val updateInterval: Long = 24L * 60 * 60 * 1000 // Milliseconds
-    override val updateAction: () -> Boolean = { true }
+    override val updateAction: () -> Boolean = { !terminationOverride }
 }
 
 /** The platform dependent task used to refresh the cached TMDB data set for a given URL. */
