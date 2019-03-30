@@ -112,10 +112,10 @@ class LibraryTest {
         assertEquals(errorItem, createFromJson("{}", errorItem), "Invalid error item creation!")
     }
 
-    @Test fun `when the data access config object is defaulted verify correct results`() {
-        val config = FetchConfigImpl()
-        assertEquals("http://files.tmdb.org/p/exports/", config.baseUrl, "Config base URL error!")
-        assertEquals(10, config.date.length, "Config date error!")
+    @Test fun `when the data access context object is defaulted verify correct results`() {
+        val context = ContextImpl()
+        assertEquals("http://files.tmdb.org/p/exports/", context.baseUrl, "Base URL error in context!")
+        assertEquals(10, context.date.length, "Date error in context!")
     }
 
     @Test fun `when an invalid list name is parsed verify an error result`() {
@@ -123,12 +123,12 @@ class LibraryTest {
         assertTrue(result is TmdbError, "Parsing error detection failed!")
     }
 
-    @Test fun `verify that the production fetch configuration action works correctly`() {
-        val uutWithDefault = FetchConfigImpl()
+    @Test fun `verify that the production fetch context action works correctly`() {
+        val uutWithDefault = ContextImpl()
         assertTrue(uutWithDefault.updateAction(), "Wrong result!")
-        val uutWithoutOverride = FetchConfigImpl(false)
+        val uutWithoutOverride = ContextImpl(false)
         assertTrue(uutWithoutOverride.updateAction(), "Wrong result!")
-        val uutWithOverride = FetchConfigImpl(true)
+        val uutWithOverride = ContextImpl(true)
         assertFalse(uutWithOverride.updateAction(), "Wrong result!")
     }
 }

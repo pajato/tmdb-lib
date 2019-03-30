@@ -12,8 +12,7 @@ interface TmdbDataFactory {
 }
 
 /** The set of collections used in TMDB. */
-@Serializable
-data class Collection(val id: Int = 0, val name: String = "") : TmdbData() {
+@Serializable data class Collection(val id: Int = 0, val name: String = "") : TmdbData() {
     companion object : TmdbDataFactory {
         override val listName = "collection_ids"
         override fun create(json: String): TmdbData = createFromJson(json, Collection())
@@ -21,8 +20,7 @@ data class Collection(val id: Int = 0, val name: String = "") : TmdbData() {
 }
 
 /** The set of keywords used in TMDB. */
-@Serializable
-data class Keyword(val id: Int = 0, val name: String = "") : TmdbData() {
+@Serializable data class Keyword(val id: Int = 0, val name: String = "") : TmdbData() {
     companion object : TmdbDataFactory {
         override val listName = "keyword_ids"
         override fun create(json: String): TmdbData = createFromJson(json, Keyword())
@@ -30,8 +28,7 @@ data class Keyword(val id: Int = 0, val name: String = "") : TmdbData() {
 }
 
 /** The set of movies known to TMDB. */
-@Serializable
-data class Movie(
+@Serializable data class Movie(
     val adult: Boolean = false,
     val id: Int = -1,
     val original_title: String = "",
@@ -45,8 +42,7 @@ data class Movie(
 }
 
 /** The set of TV networks known to TMDB. */
-@Serializable
-data class Network(val id: Int = -1, val name: String = ""): TmdbData() {
+@Serializable data class Network(val id: Int = -1, val name: String = ""): TmdbData() {
     companion object : TmdbDataFactory {
         override val listName = "tv_network_ids"
         override fun create(json: String): TmdbData = createFromJson(json, Network())
@@ -54,8 +50,7 @@ data class Network(val id: Int = -1, val name: String = ""): TmdbData() {
 }
 
 /** The set of people (cast, crew, etc.) known to TMDB. */
-@Serializable
-data class Person(
+@Serializable data class Person(
     val adult: Boolean = false,
     val id: Int = -1,
     val name: String = "",
@@ -68,8 +63,7 @@ data class Person(
 }
 
 /** The set of production companies known to TMDB. */
-@Serializable
-data class ProductionCompany(val id: Int = 0, val name: String = "") : TmdbData() {
+@Serializable data class ProductionCompany(val id: Int = 0, val name: String = "") : TmdbData() {
     companion object : TmdbDataFactory {
         override val listName = "production_company_ids"
         override fun create(json: String): TmdbData = createFromJson(json, ProductionCompany())
@@ -77,8 +71,7 @@ data class ProductionCompany(val id: Int = 0, val name: String = "") : TmdbData(
 }
 
 /** The set of TV shows known to TMDB. */
-@Serializable
-data class TvSeries(val id: Int = -1, val original_name: String = "", val popularity: Double = 0.0) : TmdbData() {
+@Serializable data class TvSeries(val id: Int = -1, val original_name: String = "", val popularity: Double = 0.0) : TmdbData() {
     companion object : TmdbDataFactory {
         override val listName = "tv_series_ids"
         override fun create(json: String): TmdbData = createFromJson(json, TvSeries())

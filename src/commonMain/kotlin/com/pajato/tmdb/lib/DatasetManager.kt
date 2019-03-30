@@ -16,25 +16,22 @@ object DatasetManager {
     internal fun resetCache() = cache.clear()
 
     /** Return a dataset for a given list name. Note that this is safe to do from the UI/Main thread. */
-    suspend fun getDataset(listName: String, config: FetchConfig = FetchConfigImpl()): List<TmdbData> {
-        if (cache.isEmpty()) scheduleDailyFetches(config)
+    suspend fun getDataset(listName: String, context: FetchContext = ContextImpl()): List<TmdbData> {
+        if (cache.isEmpty()) scheduleDailyFetches(context)
         return cache[listName] ?: listOf(TmdbError("..."))
     }
 
     /** Provide a possibly never-ending coroutine that will refresh the export data set cache. */
-    private suspend fun scheduleDailyFetches(config: FetchConfig) {
+    private suspend fun scheduleDailyFetches(context: FetchContext) {
         // Update the cache starting with the configured date and executing subsequent updates at the configured
         // interval.
-        //val foo = processDailyUpdate(config, now().unixMillisLong)
-        processDailyUpdate(config, now().unixMillisLong)
+        //val foo = processDailyUpdate(context, now().unixMillisLong)
+        processDailyUpdate(context, now().unixMillisLong)
     }
 
     /** Recursively update the dataset cache until the configured number of cycles is reached (possibly infinite). */
-    private tailrec suspend fun processDailyUpdate(
-        config: FetchConfig,
-        startTime: Long
-    ) {
-        suspend fun loadCache(config: FetchConfig) {
+    private tailrec suspend fun processDailyUpdate(context: FetchContext, startTime: Long) {
+        suspend fun loadCache() {
             suspend fun updateCache(data: Deferred<Map<String, List<TmdbData>>>) {
                 data.await()
                 for (entry in data.getCompleted().entries) {
@@ -43,15 +40,15 @@ object DatasetManager {
                 }
             }
 
-            val data = coroutineScope { async { dailyCacheRefreshTask(config) } }
+            val data = coroutineScope { async { dailyCacheRefreshTask(context) } }
             updateCache(data)
         }
 
         // Handle the scheduling recursion based on the update action defined in the fetch configuration.
-        if (config.updateAction()) {
-            val nextTime = startTime + config.updateInterval
-            loadCache(config)
-            processDailyUpdate(config, nextTime)
+        if (context.updateAction()) {
+            val nextTime = startTime + context.updateIntervalMillis
+            loadCache()
+            processDailyUpdate(context, nextTime)
         }
     }
 }
