@@ -12,38 +12,38 @@ import kotlin.test.fail
 @ExperimentalCoroutinesApi
 class LibraryTestJVM {
 
-    private class TestConfig(
+    private class TestContext(
         override val baseUrl: String = "",
         override val date: String = "03_15_2019",
-        override val readTimeout: Int = 50,
-        override val connectTimeout: Int = 20,
-        override val updateInterval: Long = 200L,
+        override val readTimeoutMillis: Int = 50,
+        override val connectTimeoutMillis: Int = 20,
+        override val updateIntervalMillis: Long = 200L,
         override val updateAction: () -> Boolean = { false }
-    ) : FetchConfig
+    ) : FetchContext()
 
     private fun runBlockingTest(
         cycles: Long = 1L,
         baseUrl: String = "",
         date: String = "03_16_2019",
-        test: suspend (config: FetchConfig, startTimes: MutableList<Long>) -> Unit
+        test: suspend (context: FetchContext, startTimes: MutableList<Long>) -> Unit
     ) {
         var counter = cycles
         val actualStartTimes = mutableListOf<Long>()
         DatasetManager.resetCache()
         runBlocking {
-            val config = TestConfig(baseUrl, date) {
+            val context = TestContext(baseUrl, date) {
                 val result = counter-- > 0
                 if (result) actualStartTimes.add(now().unixMillisLong)
                 result
             }
-            test(config, actualStartTimes)
+            test(context, actualStartTimes)
         }
     }
 
     @Test
     fun `when the dataset manager singleton is queried with an empty name verify an error subclass`() {
-        runBlockingTest { config, _ ->
-            val uut = DatasetManager.getDataset("", config)
+        runBlockingTest { context, _ ->
+            val uut = DatasetManager.getDataset("", context)
             assertEquals(1, uut.size, """Got a empty dataset for the list named ""!""")
             assertTrue(uut[0] is TmdbError, "The result is not an error!")
         }
@@ -51,8 +51,8 @@ class LibraryTestJVM {
 
     @Test
     fun `when the dataset manager singleton is queried with an invalid name verify an error subclass`() {
-        runBlockingTest { config, _ ->
-            val uut = DatasetManager.getDataset("foo", config)
+        runBlockingTest { context, _ ->
+            val uut = DatasetManager.getDataset("foo", context)
             assertEquals(uut.size, 1, "Invalid size for an invalid name!")
             assertTrue(uut[0] is TmdbError, "The result is not an error!")
         }
@@ -75,11 +75,11 @@ class LibraryTestJVM {
 
         val dir = object {}.javaClass.classLoader.getResource(".") ?: URL("http://")
         assertEquals("file", dir.protocol, "Incorrect protocol!")
-        runBlockingTest(baseUrl = dir.toString(), date = "03_15_2019") { config, _ ->
+        runBlockingTest(baseUrl = dir.toString(), date = "03_15_2019") { context, _ ->
             TmdbData::class.sealedSubclasses.forEach {
                 val listName = it.getListName()
                 if (listName == "" || listName == ANONYMOUS) return@forEach
-                val uut = DatasetManager.getDataset(listName, config)
+                val uut = DatasetManager.getDataset(listName, context)
                 when {
                     uut.isEmpty() -> failWithNoErrorOrData()
                     uut[0] is TmdbError -> failWithError(uut[0] as TmdbError)
@@ -93,8 +93,8 @@ class LibraryTestJVM {
     fun `when a connect exception is forced verify the correct behavior`() {
         runBlocking {
             val listName = "fred"
-            val config = TestConfig("http://localhost/", "03_15_2019")
-            val result = getEntry(listName, config)
+            val context = TestContext("http://localhost/", "03_15_2019")
+            val result = getEntry(listName, context)
             assertEquals(listName, result.first)
             assertEquals(1, result.second.size)
             assertTrue(result.second[0] is TmdbError)
@@ -104,7 +104,7 @@ class LibraryTestJVM {
     @Test
     fun `when the list name is blank verify an error result`() {
         runBlocking {
-            val result = fetchLines(TmdbError::class, TestConfig())
+            val result = fetchLines(TmdbError::class, TestContext())
             assertEquals(1, result.second.size)
             assertTrue(result.second[0] is TmdbError)
         }
@@ -113,7 +113,7 @@ class LibraryTestJVM {
     @Test
     fun `when the base url is blank verify an error result`() {
         runBlocking {
-            val result = fetchLines(Network::class, TestConfig())
+            val result = fetchLines(Network::class, TestContext())
             assertEquals(1, result.second.size)
             assertTrue(result.second[0] is TmdbError)
         }
@@ -123,8 +123,8 @@ class LibraryTestJVM {
     fun `test that 10 days worth of daily updates works correctly`() {
         val dir = object {}.javaClass.classLoader.getResource(".") ?: URL("http://")
         assertEquals("file", dir.protocol, "Incorrect protocol!")
-        runBlockingTest(10L, dir.toString()) { config, startTimes ->
-            val list = DatasetManager.getDataset("collection_ids", config)
+        runBlockingTest(10L, dir.toString()) { context, startTimes ->
+            val list = DatasetManager.getDataset("collection_ids", context)
             assertEquals(10, startTimes.size, "Wrong number of cycles executed!")
             assertEquals(1, list.size, "Wrong number of records in the list!")
             assertEquals("Collection", list[0].javaClass.simpleName)
@@ -132,11 +132,11 @@ class LibraryTestJVM {
     }
 
     @Test
-    fun `test that the production fetch config can terminate`() {
+    fun `test that the production fetch context can terminate`() {
         DatasetManager.resetCache()
         runBlocking {
-            val config = FetchConfigImpl(true)
-            val result = DatasetManager.getDataset(Collection.listName, config)
+            val context = ContextImpl(true)
+            val result = DatasetManager.getDataset(Collection.listName, context)
             assertEquals(1, result.size, "Wrong size!")
             assertTrue(result[0] is TmdbError)
         }
@@ -144,4 +144,3 @@ class LibraryTestJVM {
     }
 
 }
-
