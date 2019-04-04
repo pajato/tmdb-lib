@@ -2,6 +2,7 @@ package com.pajato.tmdb.lib
 
 import com.soywiz.klock.DateTime.Companion.now
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import java.net.URL
@@ -29,7 +30,7 @@ class LibraryTestJVM {
     ) {
         var counter = cycles
         val actualStartTimes = mutableListOf<Long>()
-        DatasetManager.resetCache()
+        DatasetManager.datasetCache.clear()
         runBlocking {
             val context = TestContext(baseUrl, date) {
                 val result = counter-- > 0
@@ -94,7 +95,7 @@ class LibraryTestJVM {
         runBlocking {
             val listName = "fred"
             val context = TestContext("http://localhost/", "03_15_2019")
-            val result = getEntry(listName, context)
+            val result = getCacheEntry(listName, context)
             assertEquals(listName, result.first)
             assertEquals(1, result.second.size)
             assertTrue(result.second[0] is TmdbError)
@@ -125,6 +126,7 @@ class LibraryTestJVM {
         assertEquals("file", dir.protocol, "Incorrect protocol!")
         runBlockingTest(10L, dir.toString()) { context, startTimes ->
             val list = DatasetManager.getDataset("collection_ids", context)
+            delay(11 * context.updateIntervalMillis)
             assertEquals(10, startTimes.size, "Wrong number of cycles executed!")
             assertEquals(1, list.size, "Wrong number of records in the list!")
             assertEquals("Collection", list[0].javaClass.simpleName)
@@ -133,14 +135,20 @@ class LibraryTestJVM {
 
     @Test
     fun `test that the production fetch context can terminate`() {
-        DatasetManager.resetCache()
+        DatasetManager.datasetCache.clear()
         runBlocking {
             val context = ContextImpl(true)
             val result = DatasetManager.getDataset(Collection.listName, context)
-            assertEquals(1, result.size, "Wrong size!")
-            assertTrue(result[0] is TmdbError)
+            assertTrue(result.size > 1, "Wrong size!")
+            assertTrue(result[0] is Collection)
         }
 
+    }
+
+    @Test
+    fun `ensure that schedule function terminates for code coverage`() {
+        scheduleNextUpdate(TestContext(), 0L)
+        assertTrue(true)
     }
 
 }
