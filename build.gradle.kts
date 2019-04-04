@@ -1,7 +1,11 @@
 plugins {
     kotlin("multiplatform") version "1.3.21"
     id("kotlinx-serialization") version "1.3.21"
+    `maven-publish`
 }
+
+group = "com.pajato.tmdb-lib"
+version = "0.0.1"
 
 repositories {
     maven("https://dl.bintray.com/kotlin/kotlin-eap")

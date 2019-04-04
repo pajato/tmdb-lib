@@ -12,8 +12,8 @@ import kotlin.reflect.KClass
 internal const val tmdbBlankErrorMessage = "Blank JSON argument encountered."
 internal const val ANONYMOUS = "anonymous" // provided for testing/code coverage only.
 
-/** Return a platform dependent cache entry for a given dataset. */
-internal expect suspend fun getEntry(listName: String, context: FetchContext): Pair<String, MutableList<TmdbData>>
+internal expect suspend fun getCacheEntry(listName: String, context: FetchContext): Pair<String, MutableList<TmdbData>>
+internal expect fun scheduleNextUpdate(context: FetchContext, nextTime: Long) // date: Long, task: () -> Unit): Long
 
 /** The TMDB dataset fetch context to differentiate production vs testing access. */
 abstract class FetchContext {
@@ -57,7 +57,7 @@ internal suspend fun fetchLines(subclass: KClass<out TmdbData>, context: FetchCo
         Pair<String, MutableList<TmdbData>> {
     val listName = subclass.getListName()
     val url = listName.getUrl(context)
-    return if (listName.isBlank() || url.isBlank()) getErrorEntry() else getEntry(listName, context)
+    return if (listName.isBlank() || url.isBlank()) getErrorEntry() else getCacheEntry(listName, context)
 }
 
 /** Provide an error entry for testing and network errors. */
