@@ -1,154 +1,172 @@
 package com.pajato.tmdb.lib
 
-import com.soywiz.klock.DateTime.Companion.now
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.setMain
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TestName
+import java.io.File
 import java.net.URL
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlin.test.fail
 
 @ExperimentalCoroutinesApi
 class LibraryTestJVM {
 
-    private class TestContext(
-        override val baseUrl: String = "",
-        override val date: String = "03_15_2019",
-        override val readTimeoutMillis: Int = 50,
-        override val connectTimeoutMillis: Int = 20,
-        override val updateIntervalMillis: Long = 200L,
-        override val updateAction: () -> Boolean = { false }
-    ) : FetchContext()
+    @get:Rule val testName = TestName()
+
+    private val testResourceDir by lazy { Updater.getResourceDir("test") }
+    private val testDatasetsDir = File(testResourceDir, DATASETS)
+
+    @BeforeTest fun setUp() {
+        Dispatchers.setMain(Dispatchers.Unconfined)
+        assertTrue(Updater.datasetCache.isEmpty(), "The dataset cache is not empty!")
+        assertEquals(8, File(Updater.mainDatasetsDir.path).listFiles().size, "Wrong number of files!")
+    }
+
+    @AfterTest fun tearDown() {
+        // Re-install datasets content by deleting and copying from test resources.
+
+        // Step 1: delete the datasets created by previous tests, if any.
+        Updater.deleteLoadedDatasets(Updater.mainDatasetsDir)
+        assertEquals(0, Updater.mainDatasetsDir.listFiles().size, "Datasets directory is not empty!")
+        Updater.deleteLoadedDatasets(Updater.mainStagingDir)
+        assertEquals(0, Updater.mainStagingDir.listFiles().size, "Staging directory is not empty!")
+
+        // Step 2: copy the default datasets for the test resources.
+        this.testDatasetsDir.walk().iterator().forEach {
+            if (it.isFile && !it.isDirectory) it.copyTo(File(Updater.mainDatasetsDir, it.name), true)
+        }
+        assertEquals(8, File(Updater.mainDatasetsDir.path).listFiles().size, "Wrong number of files!")
+
+        // Step 3: ensure the cache is cleared.
+        Updater.datasetCache.clear()
+    }
 
     private fun runBlockingTest(
-        cycles: Long = 1L,
+        cycles: Int = 1,
         baseUrl: String = "",
         date: String = "03_16_2019",
-        test: suspend (context: FetchContext, startTimes: MutableList<Long>) -> Unit
+        test: suspend (context: FetchContext) -> Unit
     ) {
-        var counter = cycles
-        val actualStartTimes = mutableListOf<Long>()
-        DatasetManager.datasetCache.clear()
         runBlocking {
-            val context = TestContext(baseUrl, date) {
-                val result = counter-- > 0
-                if (result) actualStartTimes.add(now().unixMillisLong)
-                result
-            }
-            test(context, actualStartTimes)
+            val context = ContextImpl(
+                cycles = cycles,
+                baseUrl = baseUrl,
+                exportDate = date,
+                readTimeoutMillis = 50,
+                connectTimeoutMillis = 20,
+                updateIntervalMillis = 200L)
+            test(context)
         }
     }
 
     @Test
-    fun `when the dataset manager singleton is queried with an empty name verify an error subclass`() {
-        runBlockingTest { context, _ ->
-            val uut = DatasetManager.getDataset("", context)
-            assertEquals(1, uut.size, """Got a empty dataset for the list named ""!""")
-            assertTrue(uut[0] is TmdbError, "The result is not an error!")
-        }
-    }
-
-    @Test
-    fun `when the dataset manager singleton is queried with an invalid name verify an error subclass`() {
-        runBlockingTest { context, _ ->
-            val uut = DatasetManager.getDataset("foo", context)
-            assertEquals(uut.size, 1, "Invalid size for an invalid name!")
-            assertTrue(uut[0] is TmdbError, "The result is not an error!")
-        }
-    }
-
-    @Test
-    fun `when the test server is pinged with valid names verify correct list sizes`() {
-        fun failWithNoErrorOrData() { fail("No error or data returned!") }
-        fun failWithError(error: TmdbError) { fail("An error occurred: ${error.message}") }
-        fun getExpectedSize(listName: String) = when (listName) {
-            Collection.listName -> 3081
-            Keyword.listName -> 36841
-            Movie.listName -> 447414
-            Network.listName -> 1873
-            Person.listName -> 1329226
-            ProductionCompany.listName -> 85018
-            TvSeries.listName -> 80052
-            else -> -1
-        }
-
+    fun `when the test server is pinged with cached dataset names verify no errors`() {
         val dir = object {}.javaClass.classLoader.getResource(".") ?: URL("http://")
         assertEquals("file", dir.protocol, "Incorrect protocol!")
-        runBlockingTest(baseUrl = dir.toString(), date = "03_15_2019") { context, _ ->
+        runBlockingTest(cycles = 0, baseUrl = dir.toString(), date = "03_16_2019") { context ->
+            ContextManager.context = context
             TmdbData::class.sealedSubclasses.forEach {
                 val listName = it.getListName()
                 if (listName == "" || listName == ANONYMOUS) return@forEach
-                val uut = DatasetManager.getDataset(listName, context)
-                when {
-                    uut.isEmpty() -> failWithNoErrorOrData()
-                    uut[0] is TmdbError -> failWithError(uut[0] as TmdbError)
-                    else -> assertEquals(getExpectedSize(listName), uut.size, "Data set list $listName size is wrong!")
-                }
+                val uut = Updater.getDataset(listName)
+                assertTrue(uut.error.isEmpty(), "List with name '$listName' has error: ${uut.error}")
             }
+            delay(7 * context.updateIntervalMillis)
         }
     }
 
     @Test
     fun `when a connect exception is forced verify the correct behavior`() {
-        runBlocking {
-            val listName = "fred"
-            val context = TestContext("http://localhost/", "03_15_2019")
-            val result = getCacheEntry(listName, context)
-            assertEquals(listName, result.first)
-            assertEquals(1, result.second.size)
-            assertTrue(result.second[0] is TmdbError)
+        runBlockingTest(cycles = 1, baseUrl = "http://localhost/", date = "03_16_2019") { context ->
+            val listName = Collection.listName
+            ContextManager.context = context
+            val url = listName.getUrl()
+            val result = getCacheEntry(listName, url)
+            assertTrue(result.second.error.isNotEmpty(), "Exception did not happen!")
         }
     }
 
     @Test
-    fun `when the list name is blank verify an error result`() {
-        runBlocking {
-            val result = fetchLines(TmdbError::class, TestContext())
-            assertEquals(1, result.second.size)
-            assertTrue(result.second[0] is TmdbError)
+    fun `when a file not found exception is forced verify the correct behavior`() {
+        runBlockingTest(cycles = 1, baseUrl = "file:///", date = "03_16_2019") { context ->
+            val listName = Collection.listName
+            ContextManager.context = context
+            val url = listName.getUrl()
+            val result = getCacheEntry(listName, url)
+            assertTrue(result.second.error.isNotEmpty(), "Exception did not happen!")
         }
     }
 
     @Test
-    fun `when the base url is blank verify an error result`() {
-        runBlocking {
-            val result = fetchLines(Network::class, TestContext())
-            assertEquals(1, result.second.size)
-            assertTrue(result.second[0] is TmdbError)
+    fun `when the list name is blank while fetching lines verify an error result`() {
+        runBlockingTest(cycles = 1, baseUrl = "file:///", date = "03_16_2019") { context ->
+            ContextManager.context = context
+            val result = fetchLines(TmdbError::class)
+            delay(2 * context.updateIntervalMillis)
+            assertEquals(-1, result.second.length)
+            assertTrue(result.second.error.isNotEmpty())
         }
     }
 
     @Test
-    fun `test that 10 days worth of daily updates works correctly`() {
+    fun `when the base url is blank while fetching lines verify an error result`() {
+        runBlockingTest(cycles = 1, baseUrl = "", date = "03_16_2019") { context ->
+            ContextManager.context = context
+            val result = fetchLines(Network::class)
+            delay(2 * context.updateIntervalMillis)
+            assertEquals(-1, result.second.length)
+            assertTrue(result.second.error.isNotEmpty())
+        }
+    }
+
+    @Test
+    fun `test that 2 cycles worth of updates works correctly`() {
+        val cycleCount = 2
         val dir = object {}.javaClass.classLoader.getResource(".") ?: URL("http://")
         assertEquals("file", dir.protocol, "Incorrect protocol!")
-        runBlockingTest(10L, dir.toString()) { context, startTimes ->
-            val list = DatasetManager.getDataset("collection_ids", context)
-            delay(11 * context.updateIntervalMillis)
-            assertEquals(10, startTimes.size, "Wrong number of cycles executed!")
-            assertEquals(1, list.size, "Wrong number of records in the list!")
-            assertEquals("Collection", list[0].javaClass.simpleName)
+        runBlockingTest(cycles = 2, baseUrl = dir.toString(), date = "03_16_2019") { context ->
+            ContextManager.context = context
+            val uut = Updater.getDataset("collection_ids")
+            delay(8 * context.updateIntervalMillis)
+            assertEquals(cycleCount, context.counter, "Wrong number of cycles executed!")
+            assertTrue(uut.error.isEmpty(), "An error occurred: ${uut.error}")
+            assertEquals(Collection.listName, uut.listName, "Invalid list type!")
         }
     }
 
     @Test
-    fun `test that the production fetch context can terminate`() {
-        DatasetManager.datasetCache.clear()
-        runBlocking {
-            val context = ContextImpl(true)
-            val result = DatasetManager.getDataset(Collection.listName, context)
-            assertTrue(result.size > 1, "Wrong size!")
-            assertTrue(result[0] is Collection)
+    fun `when a dataset with an invalid name is accessed verify an error is generated`() {
+        runBlockingTest(cycles = 1, date = "03_16_2019") { context ->
+            ContextManager.context = context
+            val uut = Updater.getDataset("foo")
+            delay(2 * context.updateIntervalMillis)
+            assertTrue(uut.error.isNotEmpty(), "The result is not an error!")
         }
-
     }
 
     @Test
-    fun `ensure that schedule function terminates for code coverage`() {
-        scheduleNextUpdate(TestContext(), 0L)
-        assertTrue(true)
+    fun `when a dataset is accessed provide a chunk of data`() {
+        fun getErrorMessage(list: List<TmdbData>) =
+            "The page (${list.size}) for date: {${ContextManager.context.exportDate}} is not between 0 and 25 records!"
+
+        ContextManager.context = ContextImpl(cycles = 0)
+        val uut = Updater.getDataset(Movie.listName)
+        val list = uut.getFirstPage()
+        assertTrue(list.size in 0..24, getErrorMessage(list))
     }
 
+    @Test
+    fun `no operation`() {
+        // ensure that the startup state is in place.
+        assertTrue(Updater.mainResourceDir.isNotEmpty(), "The main resource directory is not available!")
+        assertTrue(testResourceDir.isNotEmpty(), "The test resource directory is not available!")
+        assertEquals(8, Updater.mainDatasetsDir.listFiles().size, "Missing some files!")
+    }
 }

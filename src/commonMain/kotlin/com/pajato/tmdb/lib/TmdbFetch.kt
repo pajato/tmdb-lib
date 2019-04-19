@@ -1,7 +1,6 @@
 package com.pajato.tmdb.lib
 
 import com.soywiz.klock.DateTime
-import com.soywiz.klock.DateTime.Companion.now
 import com.soywiz.klock.hours
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -12,57 +11,46 @@ import kotlin.reflect.KClass
 internal const val tmdbBlankErrorMessage = "Blank JSON argument encountered."
 internal const val ANONYMOUS = "anonymous" // provided for testing/code coverage only.
 
-internal expect suspend fun getCacheEntry(listName: String, context: FetchContext): Pair<String, MutableList<TmdbData>>
-internal expect fun scheduleNextUpdate(context: FetchContext, nextTime: Long) // date: Long, task: () -> Unit): Long
-
-/** The TMDB dataset fetch context to differentiate production vs testing access. */
-abstract class FetchContext {
-    abstract val baseUrl: String
-    abstract val date: String
-    abstract val readTimeoutMillis: Int
-    abstract val connectTimeoutMillis: Int
-    abstract val updateIntervalMillis: Long
-    abstract val updateAction: () -> Boolean
+expect class Dataset(listName: String,  path: String = "", length: Long = -1L,  error: String = "") {
+    val listName: String
+    val path: String
+    val length: Long
+    val error: String
+    fun getFirstPage(): List<TmdbData>
 }
 
-/** The platform dependent task used to refresh the cached TMDB data set for a given URL. */
-internal class ContextImpl(terminationOverride: Boolean = false) : FetchContext() {
-    override val baseUrl: String = "http://files.tmdb.org/p/exports/"
-    override val date: String = getLastExportDate(now())
-    override val readTimeoutMillis: Int = 800
-    override val connectTimeoutMillis: Int = 200
-    override val updateIntervalMillis: Long = 24L * 60 * 60 * 1000
-    override val updateAction: () -> Boolean = { !terminationOverride }
-}
+internal expect suspend fun getCacheEntry(listName: String, url: String): Pair<String, Dataset>
 
-/** Provide a coroutine to handle fetching the daily exported TMDB datasets. */
-internal suspend fun dailyCacheRefreshTask(context: FetchContext): Map<String, List<TmdbData>> = coroutineScope {
+/** Provide a suspendable function to handle fetching the daily exported TMDB datasets. */
+internal suspend fun cacheUpdateTask(): Map<String, Dataset> = coroutineScope {
     fun isNotTmdbError(kClass: KClass<out TmdbData>) = kClass.simpleName != TmdbError::class.simpleName
 
-    // Asynchronously fetchList the exported TMDB data set for each TmdbData subclass.
+    // Asynchronously fetch the exported TMDB data set for each TmdbData subclass, excluding TmdbError.
     TmdbData::class.sealedSubclasses
         .filter { kClass -> isNotTmdbError(kClass) }
-        .map { kClass -> async { fetchLines(kClass, context) } }.awaitAll().toMap()
+        .map { kClass -> async { fetchLines(kClass) } }.awaitAll().toMap()
 }
 
 /**
  * Compute the export date for a given timestamp: if the time is before 8:00am UTC, use the previous export date,
  * otherwise use today's export data.
  */
-internal fun getLastExportDate(timestamp: DateTime): String =
-    if (timestamp.isAfter(8)) timestamp.toTmdbFormat() else (timestamp - 24.hours).toTmdbFormat()
+internal fun getLastExportDate(timestamp: Long): String {
+    val date = DateTime(timestamp)
+    return if (date.isAfter(8)) date.toTmdbFormat() else (date - 24.hours).toTmdbFormat()
+}
 
 /** Return an error or the parsed TMDB dataset for the given TmdbData subclass. */
-internal suspend fun fetchLines(subclass: KClass<out TmdbData>, context: FetchContext):
-        Pair<String, MutableList<TmdbData>> {
+internal suspend fun fetchLines(subclass: KClass<out TmdbData>): Pair<String, Dataset> {
+    fun getErrorEntry(listName: String): Pair<String, Dataset> =
+        listName to Dataset(listName, "", -1L,  "Ignorable TMDB subclass or invalid date directory!")
     val listName = subclass.getListName()
-    val url = listName.getUrl(context)
-    return if (listName.isBlank() || url.isBlank()) getErrorEntry() else getCacheEntry(listName, context)
+    val url = listName.getUrl()
+
+    return if (listName.isBlank() || url.isBlank()) getErrorEntry(listName) else getCacheEntry(listName, url)
 }
 
 /** Provide an error entry for testing and network errors. */
-internal fun getErrorEntry(): Pair<String, MutableList<TmdbData>> =
-    ANONYMOUS to mutableListOf<TmdbData>(TmdbError("Ignorable TMDB subclass!"))
 
 /** Parse a TMDB export data set record given the list name and the line to parse. */
 internal fun parse(listName: String, line: String): TmdbData =
@@ -109,8 +97,11 @@ internal fun DateTime.toTmdbFormat() = "${this.month1.toTmdbFormat()}_${this.day
 internal fun DateTime.isAfter(time: Int): Boolean = this.hours > time
 
 /** Return the empty string or a URL with a valid TMDB dataset path. */
-internal fun String.getUrl(context: FetchContext) =
-    if (this.isBlank() || context.baseUrl.isBlank()) "" else "${context.baseUrl}${this}_${context.date}.json.gz"
+internal fun String.getUrl(): String {
+    val baseUrl = ContextManager.context.baseUrl
+    val exportDate = ContextManager.context.exportDate
+    return if (this.isBlank() || baseUrl.isBlank()) "" else "$baseUrl${this}_$exportDate.json.gz"
+}
 
 /** An extension to access the list name given a TmdbData item. */
 internal fun TmdbData.getListName(): String = when (this) {

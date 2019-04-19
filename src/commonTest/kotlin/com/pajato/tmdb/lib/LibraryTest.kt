@@ -4,6 +4,7 @@
 package com.pajato.tmdb.lib
 
 import com.soywiz.klock.DateTime
+import com.soywiz.klock.DateTime.Companion.now
 import com.soywiz.klock.hours
 import com.soywiz.klock.seconds
 import kotlin.test.Test
@@ -94,13 +95,13 @@ class LibraryTest {
     @Test fun `when the last export date is before 8am UTC verify previous day`() {
         val timestamp1 = DateTime.fromUnix(0L)
         val timestamp2 = timestamp1 + 8.hours + 3599.seconds
-        assertEquals("12_31_1969", getLastExportDate(timestamp1), "Invalid Unix date format!")
-        assertEquals("12_31_1969", getLastExportDate(timestamp2), "Invalid date format!")
+        assertEquals("12_31_1969", getLastExportDate(timestamp1.unixMillisLong), "Invalid Unix date format!")
+        assertEquals("12_31_1969", getLastExportDate(timestamp2.unixMillisLong), "Invalid date format!")
     }
 
     @Test fun `when the last export date is after 8am UTC verify same day`() {
         val timestamp = DateTime.fromUnix(60 * 60 * 1000 * 9L)
-        assertEquals("01_01_1970", getLastExportDate(timestamp), "Invalid date format!")
+        assertEquals("01_01_1970", getLastExportDate(timestamp.unixMillisLong), "Invalid date format!")
     }
 
     @Test fun `when an invalid list name is parsed verify a correct error message`() {
@@ -114,8 +115,8 @@ class LibraryTest {
 
     @Test fun `when the data access context object is defaulted verify correct results`() {
         val context = ContextImpl()
-        assertEquals("http://files.tmdb.org/p/exports/", context.baseUrl, "Base URL error in context!")
-        assertEquals(10, context.date.length, "Date error in context!")
+        assertEquals("https://files.tmdb.org/p/exports/", context.baseUrl, "Base URL error in context!")
+        assertEquals(10, context.exportDate.length, "Date error in context!")
     }
 
     @Test fun `when an invalid list name is parsed verify an error result`() {
@@ -123,12 +124,56 @@ class LibraryTest {
         assertTrue(result is TmdbError, "Parsing error detection failed!")
     }
 
-    @Test fun `verify that the production fetch context action works correctly`() {
-        val uutWithDefault = ContextImpl()
-        assertTrue(uutWithDefault.updateAction(), "Wrong result!")
-        val uutWithoutOverride = ContextImpl(false)
-        assertTrue(uutWithoutOverride.updateAction(), "Wrong result!")
-        val uutWithOverride = ContextImpl(true)
-        assertFalse(uutWithOverride.updateAction(), "Wrong result!")
+    @Test
+    fun `verify that the fetch context update action works correctly`() {
+        val uutWithoutOverride = ContextImpl(cycles = -1)
+        assertTrue(uutWithoutOverride.updateAction(), "With no override gives wrong result!")
+        val uutWithOverride = ContextImpl(cycles = 1)
+        assertFalse(uutWithOverride.updateAction(), "With override gives wrong result!")
+    }
+
+    @Test fun `exercise the parser for each TmdbData subclass`() {
+        parse(Collection.listName, """{"id":645,"name":"James Bond Collection"}""")
+        parse(Keyword.listName, """{"id":730,"name":"factory worker"}""")
+        parse(Movie.listName, """{"adult":false,"id":603,"original_title":"The Matrix","popularity":32.156,"video":false}""")
+        parse(Person.listName, """{"adult":false,"id":658,"name":"Alfred Molina","popularity":4.154}""")
+        parse(ProductionCompany.listName, """{"id":601,"name":"Blake Edwards Entertainment"}""")
+        parse(Network.listName, """{"id":601,"name":"ABC News"}""")
+        parse(TvSeries.listName, """{"id":602,"original_name":"Love on a Rooftop","popularity":1.133}""")
+    }
+
+    @Test fun `test context persistence`() {
+        val cycles = 10
+        val startTime = now().unixMillisLong
+        val baseUrl = "httpz://somestuff"
+        val exportDate = "03_10_2019"
+        val readTimeout = 55
+        val connectTimeout = 125
+        val updateInterval = 250L
+        val expectedContext = ContextImpl(
+            cycles,
+            startTime,
+            exportDate,
+            baseUrl,
+            readTimeout,
+            connectTimeout,
+            updateInterval
+        )
+        ContextManager.context = expectedContext
+        storeContext()
+        val actualContext = ContextImpl(loadContext())
+        assertEquals(ContextData(expectedContext), ContextData(actualContext), "Contexts are not the same!")
+    }
+
+    @Test fun `when a dataset is created test the properties`() {
+        val listName = Collection.listName
+        val path = "file://foo"
+        val length = 12L
+        val errorMessage = "some problem exists"
+        val uut = Dataset(listName, path, length, errorMessage)
+        assertEquals(listName, uut.listName, "List name is wrong!")
+        assertEquals(path, uut.path, "Path is wrong!")
+        assertEquals(length, uut.length, "Length name is wrong!")
+        assertEquals(errorMessage, uut.error, "Error message name is wrong!")
     }
 }
