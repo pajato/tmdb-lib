@@ -39,6 +39,7 @@ kotlin {
                 implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
                 implementation("org.jetbrains.kotlin:kotlin-reflect:1.3.20")
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.1.1")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.1.1")
             }
         }
 
@@ -46,6 +47,7 @@ kotlin {
             dependencies {
                 implementation("org.jetbrains.kotlin:kotlin-test")
                 implementation("org.jetbrains.kotlin:kotlin-test-junit")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.1.1")
             }
         }
     }
@@ -61,10 +63,16 @@ task("generateSecureProperties") {
     }
 }
 
+tasks.register<Copy>("copyMainResources") {
+    from(file("$projectDir/src/jvmMain/resources/"))
+    into(file("$buildDir/classes/kotlin/jvm/main/"))
+}
 
-tasks.register<Copy>("copyResources") {
+tasks.get(name = "jvmMainClasses").dependsOn += tasks.get(name = "copyMainResources")
+
+tasks.register<Copy>("copyTestResources") {
     from(file("$projectDir/src/jvmTest/resources/"))
     into(file("$buildDir/classes/kotlin/jvm/test/"))
 }
 
-tasks.get(name = "jvmTest").dependsOn += tasks.get(name = "copyResources")
+tasks.get(name = "jvmTest").dependsOn += tasks.get(name = "copyTestResources")

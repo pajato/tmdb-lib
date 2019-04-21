@@ -1,39 +1,59 @@
 package com.pajato.tmdb.lib
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import java.net.ConnectException
+import kotlinx.serialization.json.Json
+import java.io.File
 import java.net.URL
-import java.util.Date
-import java.util.Timer
-import java.util.zip.GZIPInputStream
-import kotlin.concurrent.schedule
 
-internal actual suspend fun getCacheEntry(listName: String, context: FetchContext):
-        Pair<String, MutableList<TmdbData>> =
+internal actual suspend fun getCacheEntry(listName: String, url: String): Pair<String, Dataset> =
     withContext(Dispatchers.IO) {
-        fun fetchData(): Pair<String, MutableList<TmdbData>> =
-            URL(listName.getUrl(context)).openConnection().apply {
+        val context = ContextManager.context
+        val datasetsDir = javaClass.getResource("/staging/")?.file
+        fun fetchData(): Pair<String, Dataset> =
+            URL(url).openConnection().apply {
                 readTimeout = context.readTimeoutMillis
                 connectTimeout = context.connectTimeoutMillis
             }.getInputStream().use { stream ->
-                val result = mutableListOf<TmdbData>()
-                GZIPInputStream(stream).bufferedReader().forEachLine { line -> result.add(parse(listName, line)) }
+                val outFile = File(datasetsDir, "${listName}_${context.exportDate}.json.gz")
+                val length = stream.copyTo(outFile.outputStream())
+                val result = Dataset(listName, outFile.absolutePath, length)
                 listName to result
             }
 
-        try {
+        if (datasetsDir == null) { listName to Dataset(listName, error = "No staging directory available.") }
+        else try {
             fetchData()
-        } catch (exc: ConnectException) {
-            listName to mutableListOf<TmdbData>(TmdbError("Could not connect. See terminal output."))
+        } catch (exc: Exception) {
+            listName to Dataset(listName, error = "Unexpected exception: ${exc.message}")
         }
+
     }
 
-@ExperimentalCoroutinesApi
-internal actual fun scheduleNextUpdate(context: FetchContext, nextTime: Long) {
-    if (context.updateAction()) {
-        Timer().schedule(Date(nextTime)) { runBlocking { DatasetManager.processCacheUpdate(context, nextTime) } }
+actual class Dataset actual constructor(
+    actual val listName: String,
+    actual val path: String,
+    actual val length: Long,
+    actual val error: String
+) {
+    actual fun getFirstPage(): List<TmdbData> {
+        //val datasetFile = File(path)
+        //val ramFile = RandomAccessFile(datasetFile, "r")
+        return listOf()
     }
+}
+
+internal const val SAVED_CONTEXT_PATH = "datasets/context.json"
+
+internal actual fun saveContext() {
+    val context = ContextManager.context
+    val jsonData = Json.stringify(ContextData.serializer(), ContextData(context))
+    val contextFile = File(Updater.mainResourceDir, SAVED_CONTEXT_PATH)
+    contextFile.writeText(jsonData)
+}
+
+internal actual fun restoreContext(): ContextData {
+    val contextFile = File(Updater.mainResourceDir, SAVED_CONTEXT_PATH)
+    val jsonText = contextFile.readText()
+    return Json.parse(ContextData.serializer(), jsonText)
 }
